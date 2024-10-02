@@ -1,0 +1,63 @@
+id,name,active,notes
+191248000,Aplastic anemia caused by toxic cause (disorder),y,direct mapping
+267527002,Aplastic anemia due to drugs (disorder),y,direct mapping
+236467001,Acquired Fanconi syndrome (disorder),y,direct mapping
+306058006,Aplastic anemia (disorder),y,direct mapping
+191246001,Aplastic anemia due to infection (disorder),y,direct mapping
+191244003,Aplastic anemia due to chronic disease (disorder),y,direct mapping
+267524009,Constitutional aplastic anemia with malformation (disorder),y,direct mapping
+191247005,Aplastic anemia caused by radiation (disorder),y,direct mapping
+240486003,Parvoviral aplastic crisis (disorder),y,direct mapping
+55907008,Acquired aplastic anemia (disorder),y,direct mapping
+267525005,Constitutional red cell aplasia and hypoplasia (disorder),y,direct mapping
+191251007,Transient hypoplastic anemia (disorder),y,direct mapping
+236466005,Congenital Fanconi syndrome (disorder),y,direct mapping
+236468006,Adult Fanconi syndrome (disorder),y,direct mapping
+28975000,Constitutional aplastic anemia (disorder),y,direct mapping
+191256002,Idiopathic aplastic anemia (disorder),y,direct mapping
+234367000,Pancytopenia with pancreatitis (disorder),y,direct mapping
+275523003,Pancytopenia-dysmelia (disorder),y,direct mapping
+30575002,Fanconi's anemia (disorder),y,direct mapping
+234343008,Normocytic anemia due to aplasia (disorder),y,direct mapping
+234373004,Constitutional red cell hypoplasia (disorder),y,direct mapping
+46760003,Estren-Dameshek anemia (disorder),y,descendant of concept mapped from leaf
+765748009,Adult pure red cell aplasia (disorder),y,descendant of concept mapped from leaf
+234370001,"Pure red cell aplasia, acquired (disorder)",y,descendant of concept mapped from leaf
+14024008,Humoral immunologic aplastic anemia (disorder),y,descendant of concept mapped from leaf
+191255003,Transient acquired pure red cell aplasia (disorder),y,descendant of concept mapped from leaf
+413567003,Aplastic anemia associated with pregnancy (disorder),y,descendant of concept mapped from leaf
+713910008,Antibody mediated acquired pure red cell aplasia caused by erythropoiesis stimulating agent (disorder),y,descendant of concept mapped from leaf
+719019000,WT limb blood syndrome (disorder),y,descendant of concept mapped from leaf
+118791000119106,Aplastic anemia caused by antineoplastic agent (disorder),y,descendant of concept mapped from leaf
+50220002,Cellular immunologic aplastic anemia (disorder),y,descendant of concept mapped from leaf
+413566007,Aplastic anemia associated with pancreatitis (disorder),y,descendant of concept mapped from leaf
+421102007,Aplastic anemia associated with acquired immunodeficiency syndrome (disorder),y,descendant of concept mapped from leaf
+234376007,Acquired red cell aplasia (disorder),y,descendant of concept mapped from leaf
+90414007,Chronic acquired pure red cell aplasia (disorder),y,descendant of concept mapped from leaf
+413565006,Aplastic anemia associated with metabolic alteration (disorder),y,descendant of concept mapped from leaf
+77084001,Immunologic aplastic anemia (disorder),y,descendant of concept mapped from leaf
+723512008,Revesz syndrome (disorder),y,descendant of concept mapped from leaf
+43858000,Secondary aplastic anemia (disorder),y,descendant of concept mapped from leaf
+643151000000105,Acquired aplastic anemia NOS (disorder),n,via Query Table
+49155007,Aplastic anemia secondary to chemicals (disorder),n,via Query Table
+414481000000103,"[X]Acquired pure red cell aplasia, unspecified",n,via Query Table
+606981000000103,Other specified constitutional aplastic anemia (disorder),n,via Query Table
+933371000000101,Erythropoiesis stimulating agent induced antibody mediated acquired pure red cell aplasia (disorder),n,via Query Table
+67105003,Aplastic anemia secondary to chronic systemic disease (disorder),n,via Query Table
+531991000000108,Constitutional aplastic anemia without mention of malformation (disorder),n,via Query Table
+83153007,Aplastic anemia secondary to infection (disorder),n,via Query Table
+450011000000103,[X]Other specified aplastic anaemias (disorder),n,via Query Table
+69336006,Aplastic anemia secondary to metabolic alteration (disorder),n,via Query Table
+938141000000102,Congenital Fanconi syndrome,n,via Query Table
+47226002,Aplastic anemia secondary to pregnancy (disorder),n,via Query Table
+9043005,Aplastic anemia secondary to drugs (disorder),n,via Query Table
+419251000000109,"[X]Acquired pure red cell aplasia, unspecified (disorder)",n,via Query Table
+191431005,"[X]Acquired pure red cell aplasia, unspecified (disorder)",n,via Query Table
+2966007,Aplastic anemia secondary to radiation (disorder),n,via Query Table
+467391000000104,[X]Other acquired pure red cell aplasias (disorder),n,via Query Table
+610681000000109,Constitutional aplastic anemia NOS (disorder),n,via Query Table
+413564005,Aplastic anemia associated with infection (disorder),n,via Query Table
+31779001,Aplastic anemia secondary to pancreatitis (disorder),n,via Query Table
+83659007,AIDS with aplastic anemia (disorder),n,via Query Table
+857431000000107,Adult Fanconi syndrome,n,via Query Table
+834891000000103,Acquired Fanconi syndrome,n,via Query Table
