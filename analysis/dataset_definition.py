@@ -371,3 +371,65 @@ dataset.date_covid19_vax5 = (clinical_events.where(
 
 
 ## add outcomes to the dataset
+# add date of rheumatoid arthritis onset column
+rheumatoid_arthritis_primary_date = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(ra_code_snomed)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+rheumatoid_arthritis_secondary_date1 = (apcs.where(
+    (apcs.primary_diagnosis.is_in(ra_code_icd) |
+    apcs.secondary_diagnosis.is_in(ra_code_icd))
+).sort_by(apcs.admission_date).first_for_patient().admission_date)
+
+rheumatoid_arthritis_secondary_date2 = (opa_diag.where(
+    (opa_diag.primary_diagnosis_code.is_in(ra_code_icd) |
+    opa_diag.secondary_diagnosis_code_1.is_in(ra_code_icd))
+).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
+
+dataset.rheuatoid_arthritis_date = minimum_of(rheumatoid_arthritis_primary_date,
+                                              rheumatoid_arthritis_secondary_date1,
+                                              rheumatoid_arthritis_secondary_date2)
+
+# add date of undifferentiated inflammatory arthritis (undiff_eia) onset column
+dataset.undiff_eia_date = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(undiff_eia_code_snomed)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+# add date of psoriatic arthritis onset column
+psoriatic_arthritis_primary_date = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(psoa_code_snomed)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+psoriatic_arthritis_secondary_date1 = (apcs.where(
+    (apcs.primary_diagnosis.is_in(psoa_code_icd) |
+    apcs.secondary_diagnosis.is_in(psoa_code_icd))
+).sort_by(apcs.admission_date).first_for_patient().admission_date)
+
+psoriatic_arthritis_secondary_date2 = (opa_diag.where(
+    (opa_diag.primary_diagnosis_code.is_in(psoa_code_icd) |
+    opa_diag.secondary_diagnosis_code_1.is_in(psoa_code_icd))
+).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
+
+dataset.psoriatic_arthitis = minimum_of(psoriatic_arthritis_primary_date,
+                                        psoriatic_arthritis_secondary_date1,
+                                        psoriatic_arthritis_secondary_date2)
+
+# add date of axial spondyloarthritis (axial) onset column
+axial_arthritis_primary_date = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(axial_code_snomed)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+axial_arthritis_secondary_date1 = (apcs.where(
+    (apcs.primary_diagnosis.is_in(axial_code_icd) |
+    apcs.secondary_diagnosis.is_in(axial_code_icd))
+).sort_by(apcs.admission_date).first_for_patient().admission_date)
+
+axial_arthritis_secondary_date2 = (opa_diag.where(
+    (opa_diag.primary_diagnosis_code.is_in(axial_code_icd) |
+    opa_diag.secondary_diagnosis_code_1.is_in(axial_code_icd))
+).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
+
+dataset.axial = minimum_of(axial_arthritis_primary_date,
+                           axial_arthritis_secondary_date1,
+                           axial_arthritis_secondary_date2)
+
