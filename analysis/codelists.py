@@ -1,25 +1,6 @@
 from ehrql import codelist_from_csv
 
-#Covid
-covid_codes = codelist_from_csv(
-    "codelists/user-RochelleKnight-confirmed-hospitalised-covid-19.csv",
-    column="code",
-)
-
-covid_primary_care_positive_test = codelist_from_csv(
-    "codelists/opensafely-covid-identification-in-primary-care-probable-covid-positive-test.csv",
-    column="CTV3ID",
-)
-
-covid_primary_care_code = codelist_from_csv(
-    "codelists/opensafely-covid-identification-in-primary-care-probable-covid-clinical-code.csv",
-    column="CTV3ID",
-)
-
-covid_primary_care_sequalae = codelist_from_csv(
-    "codelists/opensafely-covid-identification-in-primary-care-probable-covid-sequelae.csv",
-    column="CTV3ID",
-)
+## confounders
 #Ethnicity
 opensafely_ethnicity_codes_6 = codelist_from_csv(
     "codelists/opensafely-ethnicity.csv",
@@ -451,6 +432,51 @@ pregnancy_snomed_clinical = codelist_from_csv(
 #     "codelists/user-elsie_horne-dementia_icd10.csv",
 #     column="code",
 # )
+
+## exposures
+# COVID-19 infection
+covid_primary_care_positive_test = codelist_from_csv(
+    "codelists/opensafely-covid-identification-in-primary-care-probable-covid-positive-test.csv",
+    column="CTV3ID",
+)
+
+covid_primary_care_code = codelist_from_csv(
+    "codelists/opensafely-covid-identification-in-primary-care-probable-covid-clinical-code.csv",
+    column="CTV3ID",
+)
+
+covid_primary_care_sequalae = codelist_from_csv(
+    "codelists/opensafely-covid-identification-in-primary-care-probable-covid-sequelae.csv",
+    column="CTV3ID",
+)
+
+covid_codes = codelist_from_csv(
+    "codelists/user-RochelleKnight-confirmed-hospitalised-covid-19.csv",
+    column="code",
+)
+
+# COVID-19 vaccination
+vac_adm_1 = codelist_from_csv(
+  "codelists/primis-covid19-vacc-uptake-covadm1.csv",
+  column="code"
+)
+vac_adm_2 = codelist_from_csv(
+  "codelists/primis-covid19-vacc-uptake-covadm2.csv",
+  column="code"
+)
+vac_adm_3 = codelist_from_csv(
+  "codelists/primis-covid19-vacc-uptake-covadm3_cod.csv",
+  column="code"
+)
+vac_adm_4 = codelist_from_csv(
+  "codelists/primis-covid19-vacc-uptake-covadm4_cod.csv",
+  column="code"
+)
+vac_adm_5 = codelist_from_csv(
+  "codelists/primis-covid19-vacc-uptake-covadm5_cod.csv",
+  column="code"
+)
+
 
 ##################################################################################################################################
 # Autoimmune disease codes                                                                                                       #
