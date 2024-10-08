@@ -782,12 +782,12 @@ aha_code_icd = codelist_from_csv(
 ##################################################################################################
 # Outcome group 8: Inflammatory neuromuscular disease                                            #
 ##################################################################################################
-# Guillain Barre - read
+# Guillain Barré - read
 glb_code_ctv = codelist_from_csv(
     "codelists/opensafely-guillain-barre.csv",
     column="code",
 )
-# Guillain Barre - hes
+# Guillain Barré - hes
 glb_code_icd = codelist_from_csv(
     "codelists/opensafely-guillain-barre-syndrome-icd10.csv",
     column="code",
