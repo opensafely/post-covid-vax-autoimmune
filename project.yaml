@@ -13,9 +13,9 @@ actions:
   ## # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
   generate_study_population:
-    run: ehrql:v1 generate-dataset analysis/dataset_definition.py --output-format
-      csv.gz
+    run: "ehrql:v1 generate-dataset analysis/dataset_definition.py \n    --output
+      output/study_data.csv"
     outputs:
       highly_sensitive:
-        cohort: output/input_prelim.csv.gz
+        cohort: output/study_data.csv
 

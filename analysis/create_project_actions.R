@@ -89,10 +89,11 @@ actions_list <- splice(
 
   action(
     name = "generate_study_population",
-    run = "ehrql:v1 generate-dataset analysis/dataset_definition.py --output-format csv.gz",
+    run = "ehrql:v1 generate-dataset analysis/dataset_definition.py 
+    --output output/study_data.csv",
     needs = NULL,
     highly_sensitive = list(
-      cohort = glue("output/input_prelim.csv.gz")
+      cohort = glue("output/study_data.csv")
     )
   )
 )
