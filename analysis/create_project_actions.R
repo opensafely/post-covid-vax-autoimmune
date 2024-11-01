@@ -11,6 +11,7 @@ defaults_list <- list(
   expectations= list(population_size = 150000L)
 )
 
+
 #### create comment and generic action functions ####
 # create comment function
 comment <- function(...){
@@ -59,22 +60,6 @@ action <- function(
 }
 
 
-#### functions for creating study population ####
-# create function for generating study population
-generate_study_population <- function(){
-  splice(
-    comment(glue("Generate study population")),
-    action(
-      name = glue("generate_study_population"),
-      run = glue("ehrql:v1 generate-dataset analysis/dataset_definition.py 
-      --output output/study_data.csv"),
-      needs = NULL),
-      highly_sensitive = list(
-        cohort = glue("output/study_data.csv.csv.gz")
-      )
-    )
-}
-
 #### combine all actions into a list ####
 # create list of actions
 actions_list <- splice(
@@ -97,6 +82,7 @@ actions_list <- splice(
     )
   )
 )
+
 
 #### combine actions_list and defaults_list ####
 # combine everything
