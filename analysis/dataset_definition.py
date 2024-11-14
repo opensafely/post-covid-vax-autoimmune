@@ -19,6 +19,9 @@ from codelists import *
 # create dataset
 dataset = create_dataset()
 
+# set size of dummy dataset
+dataset.configure_dummy_data(population_size = 10000)
+
 # define index date
 index_date = "2020-03-31"
 

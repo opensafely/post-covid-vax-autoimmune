@@ -8,7 +8,7 @@ library('glue')
 #### create defaults list ####
 defaults_list <- list(
   version = "3.0",
-  expectations= list(population_size = 150000L)
+  expectations = list(population_size = 10000L)
 )
 
 
@@ -21,7 +21,7 @@ comment <- function(...){
 }
 
 # create function to convert comment "actions" in a yaml string into proper comments
-convert_comment_actions <-function(yaml.txt){
+convert_comment_actions <- function(yaml.txt){
   yaml.txt %>%
     str_replace_all("\\\n(\\s*)\\'\\'\\:(\\s*)\\'", "\n\\1")  %>%
     str_replace_all("([^\\'])\\\n(\\s*)\\#\\#", "\\1\n\n\\2\\#\\#") %>%
@@ -32,11 +32,11 @@ convert_comment_actions <-function(yaml.txt){
 action <- function(
     name,
     run,
-    dummy_data_file=NULL,
-    arguments=NULL,
-    needs=NULL,
-    highly_sensitive=NULL,
-    moderately_sensitive=NULL
+    dummy_data_file = NULL,
+    arguments = NULL,
+    needs = NULL,
+    highly_sensitive = NULL,
+    moderately_sensitive = NULL
 ){
   
   outputs <- list(
