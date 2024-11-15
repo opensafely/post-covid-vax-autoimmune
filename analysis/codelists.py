@@ -1,7 +1,9 @@
 from ehrql import codelist_from_csv
 
-## confounders
-#Ethnicity
+##################################################################################################################################
+# Demographics and Confounders                                                                                                      #
+################################################################################################################################## 
+# Ethnicity
 opensafely_ethnicity_codes_6 = codelist_from_csv(
     "codelists/opensafely-ethnicity.csv",
     column="Code",
@@ -13,7 +15,7 @@ primis_covid19_vacc_update_ethnicity = codelist_from_csv(
     column="code",
     category_column="grouping_6_id",
 )
-#Smoking
+# Smoking
 smoking_clear = codelist_from_csv(
     "codelists/opensafely-smoking-clear.csv",
     column="CTV3Code",
@@ -113,7 +115,7 @@ hrt_dmd = codelist_from_csv(
     column="code",
 )
 
-# HYpertension
+# Hypertension
 hypertension_icd10 = codelist_from_csv(
     "codelists/user-elsie_horne-hypertension_icd10.csv",
     column="code",
@@ -127,7 +129,7 @@ hypertension_snomed_clinical = codelist_from_csv(
     column="code",
 )
 
-# Prostate
+# Prostate cancer
 prostate_cancer_icd10 = codelist_from_csv(
     "codelists/user-RochelleKnight-prostate_cancer_icd10.csv",
     column="code",
@@ -210,17 +212,7 @@ longres_primis = codelist_from_csv(
     "codelists/primis-covid19-vacc-uptake-longres.csv",
     column="code",
 )
-# High Risk from COVID-19 code
-shield_primis = codelist_from_csv(
-    "codelists/primis-covid19-vacc-uptake-shield.csv",
-    column="code",
-)
 
-# Lower Risk from COVID-19 codes
-nonshield_primis = codelist_from_csv(
-    "codelists/primis-covid19-vacc-uptake-nonshield.csv",
-    column="code",
-)
 
 #For JCVI groups
 # Pregnancy codes 
@@ -408,7 +400,7 @@ prediabetes_snomed = codelist_from_csv(
     column="code",
 )
 
-##Quality assurance codes 
+## Quality assurance codes 
 
 prostate_cancer_snomed_clinical = codelist_from_csv(
     "codelists/user-RochelleKnight-prostate_cancer_snomed.csv",
@@ -433,7 +425,28 @@ pregnancy_snomed_clinical = codelist_from_csv(
 #     column="code",
 # )
 
-## exposures
+##################################################################################################################################
+# COVID-19 risk, disease and vaccination codes                                                                                                       #
+################################################################################################################################## 
+
+###############################################################################
+# At risk from COVID-19                                                       #
+###############################################################################
+# High Risk from COVID-19 code
+shield_primis = codelist_from_csv(
+    "codelists/primis-covid19-vacc-uptake-shield.csv",
+    column="code",
+)
+
+# Lower Risk from COVID-19 codes
+nonshield_primis = codelist_from_csv(
+    "codelists/primis-covid19-vacc-uptake-nonshield.csv",
+    column="code",
+)
+
+###############################################################################
+# COVID-19 disease codes                                                      #
+###############################################################################
 # COVID-19 infection
 covid_primary_care_positive_test = codelist_from_csv(
     "codelists/opensafely-covid-identification-in-primary-care-probable-covid-positive-test.csv",
@@ -455,26 +468,56 @@ covid_codes = codelist_from_csv(
     column="code",
 )
 
-# COVID-19 vaccination
+#############################################################################
+# COVID-19 vaccination                                                      #
+#############################################################################
+## COVID-19 vaccination
+# 1st dose
 vac_adm_1 = codelist_from_csv(
   "codelists/primis-covid19-vacc-uptake-covadm1.csv",
   column="code"
 )
+
+# 2nd dose
 vac_adm_2 = codelist_from_csv(
   "codelists/primis-covid19-vacc-uptake-covadm2.csv",
   column="code"
 )
+
+# 3rd dose
 vac_adm_3 = codelist_from_csv(
   "codelists/primis-covid19-vacc-uptake-covadm3_cod.csv",
   column="code"
 )
+
+# 4th dose
 vac_adm_4 = codelist_from_csv(
   "codelists/primis-covid19-vacc-uptake-covadm4_cod.csv",
   column="code"
 )
+
+# 5th dose
 vac_adm_5 = codelist_from_csv(
   "codelists/primis-covid19-vacc-uptake-covadm5_cod.csv",
   column="code"
+)
+
+# oxford-astrazeneca dose
+vac_chadox1_dose = codelist_from_csv(
+    "codelists/primis-covid19-vacc-uptake-azdrx.csv",
+    column = "code"
+)
+
+# moderna dose
+vac_mrna_dose = codelist_from_csv(
+    "codelists/primis-covid19-vacc-uptake-modrx.csv",
+    column = "code"
+)
+
+# pfizer dose
+vac_bnt_dose = codelist_from_csv(
+    "codelists/primis-covid19-vacc-uptake-pfdrx.csv",
+    column = "code"
 )
 
 

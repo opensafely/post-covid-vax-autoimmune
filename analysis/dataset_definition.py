@@ -10,7 +10,8 @@ from ehrql.tables.tpp import (
     occupation_on_covid_vaccine_record,
     apcs,
     opa_diag,
-    medications
+    medications,
+    ons_deaths
 )
 
 # import codelists
@@ -22,26 +23,32 @@ dataset = create_dataset()
 # set size of dummy dataset
 dataset.configure_dummy_data(population_size = 10000)
 
-# define index date
-index_date = "2020-03-31"
+# define start and end dates
+start_date = "2020-01-29"
+end_date = "2022-03-31"
 
-# prior follow-up date
-prior_followup_date = "2019-09-30"
+# prior follow-up start and end dates
+prior_followup_start_date = "2019-07-29"
+prior_followup_end_date = "2021-09-30"
 
 ## defining inclusion criteria
-# find patients who are have 6 month prior follow-up to index date
-has_registration = practice_registrations.for_patient_on(
-    prior_followup_date
-).exists_for_patient()
+# find patients who are have 6 month prior follow-up in study period
+has_registration = practice_registrations.where(
+    practice_registrations.start_date.is_on_or_between(prior_followup_start_date, prior_followup_end_date) |
+    practice_registrations.end_date.is_on_or_between(start_date + days(1), end_date) |
+    (practice_registrations.start_date.is_on_or_before(prior_followup_end_date) &
+    (practice_registrations.end_date.is_on_or_after(start_date + days(1)) |
+     practice_registrations.end_date.is_null()))
+)
 
 # find patients with known deprivation
 has_deprivation_index = addresses.for_patient_on(
-    index_date
+    start_date
 ).imd_rounded.is_not_null()
 
 # find patients with known region
 has_region = practice_registrations.for_patient_on(
-    index_date
+    start_date
 ).practice_nuts1_region_name.is_not_null()
 
 
@@ -49,13 +56,15 @@ has_region = practice_registrations.for_patient_on(
 dataset.define_population(
     (patients.date_of_birth.is_on_or_before("2002-03-31")) & 
     (patients.date_of_birth.is_on_or_after("1910-03-31")) & 
-    (has_registration) &
+    (has_registration.exists_for_patient()) &
     ((patients.sex == "male") | (patients.sex == "female")) &
     (has_deprivation_index) &
     (has_region))
 
 
 ## add potential confounders to dataset
+dataset.date_registered = practice_registrations.sort_by(practice_registrations.start_date).last_for_patient().start_date
+dataset.date_deregidtered = practice_registrations.sort_by(practice_registrations.end_date).last_for_patient().end_date
 # add patients date of birth as column
 dataset.dob = patients.date_of_birth
 
@@ -73,7 +82,7 @@ dataset.ethnicity = (
 )
 
 # add imd decile column
-imd_rounded = addresses.for_patient_on(index_date).imd_rounded
+imd_rounded = addresses.for_patient_on(start_date).imd_rounded
 max_imd = 32844
 
 imd_decile = case(
@@ -92,7 +101,7 @@ imd_decile = case(
 dataset.imd_decile = imd_decile
 
 # add region column
-region = (practice_registrations.for_patient_on(index_date)
+region = (practice_registrations.for_patient_on(start_date)
           .practice_nuts1_region_name)
 
 dataset.region = region
@@ -106,7 +115,7 @@ dataset.consultation_rate = appointments.where(
         "Visit",
         "Waiting",
         "Patient Walked Out",
-    ]) & appointments.start_date.is_on_or_between(index_date - days(365), index_date)
+    ]) & appointments.start_date.is_on_or_between(start_date - days(365), start_date)
 ).count_for_patient()
 
 # add smoking status column
@@ -126,27 +135,30 @@ dataset.healthcare_worker = occupation_on_covid_vaccine_record.where(
 
 # add carehome resident column
 dataset.carehome_resident = (    
-    addresses.for_patient_on(index_date).care_home_is_potential_match |
-    addresses.for_patient_on(index_date).care_home_requires_nursing |
-    addresses.for_patient_on(index_date).care_home_does_not_require_nursing
+    addresses.for_patient_on(start_date).care_home_is_potential_match |
+    addresses.for_patient_on(start_date).care_home_requires_nursing |
+    addresses.for_patient_on(start_date).care_home_does_not_require_nursing
 )
+
+# add date of death column
+dataset.death_date = ons_deaths.date
 
 # add dementia column
 dataset.dementia = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(
             dementia_snomed_clinical + dementia_vascular_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(dementia_icd10 + dementia_vascular_icd10)) | 
         (apcs.secondary_diagnosis.is_in(dementia_icd10 + dementia_vascular_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(dementia_icd10 + dementia_vascular_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(dementia_icd10 + dementia_vascular_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -154,17 +166,17 @@ dataset.dementia = (
 dataset.liver_disease = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(liver_disease_snomed_clinical)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(liver_disease_icd10)) | 
         (apcs.secondary_diagnosis.is_in(liver_disease_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(liver_disease_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(liver_disease_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -172,17 +184,17 @@ dataset.liver_disease = (
 dataset.chronic_kidney_disease = (
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(ckd_snomed_clinical)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(ckd_icd10)) |
         (apcs.secondary_diagnosis.is_in(ckd_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(ckd_icd10)) |
         (opa_diag.secondary_diagnosis_code_1.is_in(ckd_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -190,17 +202,17 @@ dataset.chronic_kidney_disease = (
 dataset.cancer = (        
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(cancer_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(cancer_icd10)) | 
         (apcs.secondary_diagnosis.is_in(cancer_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
         (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(cancer_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(cancer_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -208,21 +220,21 @@ dataset.cancer = (
 dataset.hypertension = (
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(hypertension_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (medications.where(
         ((medications.dmd_code.is_in(hypertension_drugs_dmd))) &
-        (medications.date.is_before(index_date))
+        (medications.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(hypertension_icd10)) |
         (apcs.secondary_diagnosis.is_in(hypertension_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
             (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(hypertension_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(hypertension_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -234,27 +246,27 @@ dataset.diabetes = (
         diabetes_diagnostic_snomed_clinical + 
         diabetes_other_snomed_clinical + 
         diabetes_gestational_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (medications.where(
         ((medications.dmd_code.is_in(insulin_snomed_clinical)) | 
         (medications.dmd_code.is_in(antidiabetic_drugs_snomed_clinical)) |
         (medications.dmd_code.is_in(non_metformin_dmd))) &
-        (medications.date.is_before(index_date))
+        (medications.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(diabetes_type1_icd10)) | 
         (apcs.primary_diagnosis.is_in(diabetes_type2_icd10)) |
         (apcs.secondary_diagnosis.is_in(diabetes_type1_icd10)) |
         (apcs.secondary_diagnosis.is_in(diabetes_type2_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(diabetes_type1_icd10)) | 
         (opa_diag.primary_diagnosis_code.is_in(diabetes_type2_icd10)) |
         (opa_diag.secondary_diagnosis_code_1.is_in(diabetes_type1_icd10)) |
         (opa_diag.secondary_diagnosis_code_1.is_in(diabetes_type2_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -262,17 +274,17 @@ dataset.diabetes = (
 dataset.obesity = (
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(bmi_obesity_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(bmi_obesity_icd10)) |
         (apcs.secondary_diagnosis.is_in(bmi_obesity_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(bmi_obesity_icd10)) |
         (opa_diag.secondary_diagnosis_code_1.is_in(bmi_obesity_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -280,17 +292,17 @@ dataset.obesity = (
 dataset.copd = (
     (clinical_events.where(
         ((clinical_events.snomedct_code.is_in(copd_snomed_clinical))) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(copd_icd10)) |
         (apcs.secondary_diagnosis.is_in(copd_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(copd_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(copd_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -298,17 +310,17 @@ dataset.copd = (
 dataset.ami = (        
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(ami_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(ami_icd10 + ami_prior_icd10)) | 
         (apcs.secondary_diagnosis.is_in(ami_icd10 + ami_prior_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(ami_icd10 + ami_prior_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(ami_icd10 + ami_prior_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -316,17 +328,17 @@ dataset.ami = (
 dataset.ischaemic_stroke = (        
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(stroke_isch_snomed_clinical)) &
-        (clinical_events.date.is_before(index_date))
+        (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(stroke_isch_icd10)) | 
         (apcs.secondary_diagnosis.is_in(stroke_isch_icd10))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(stroke_isch_icd10)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(stroke_isch_icd10))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -372,6 +384,21 @@ dataset.date_covid19_vax4 = (clinical_events.where(
 
 dataset.date_covid19_vax5 = (clinical_events.where(
     clinical_events.snomedct_code.is_in(vac_adm_5)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+# add date for ChAdOx1 vaccine
+dataset.date_chadox1 = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(vac_chadox1_dose)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+# add date for BNT162b2 vaccine
+dataset.date_bnt162b2 = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(vac_bnt_dose)
+).sort_by(clinical_events.date).first_for_patient().date)
+
+# add date for mRNA-1273 vaccine
+dataset.date_mrna1273 = (clinical_events.where(
+    clinical_events.snomedct_code.is_in(vac_mrna_dose)
 ).sort_by(clinical_events.date).first_for_patient().date)
 
 
@@ -1017,23 +1044,23 @@ dataset.composite_ai_outcome = minimum_of(dataset.grp1_outcome,
                                           dataset.grp8_outcome)
 
 
-## add binary variable for outcomes before index date
+## add binary variable for outcomes before start date
 # add history of rheumatoid arthritis onset column
 # add liver disease column
 dataset.rheumatoid_arthritis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(ra_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(ra_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(ra_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(ra_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(ra_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1042,7 +1069,7 @@ dataset.rheumatoid_arthritis_hist = (
 dataset.undiff_eia_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(undiff_eia_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()))
 
 
@@ -1050,17 +1077,17 @@ dataset.undiff_eia_hist = (
 dataset.psoriatic_arthitis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(psoa_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(psoa_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(psoa_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(psoa_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(psoa_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1068,17 +1095,17 @@ dataset.psoriatic_arthitis_hist = (
 dataset.axial_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(axial_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(axial_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(axial_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(axial_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(axial_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1093,17 +1120,17 @@ dataset.grp1_outcome_hist = (dataset.rheumatoid_arthritis_hist |
 dataset.sle_hist  = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(sle_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(sle_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(sle_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(sle_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(sle_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1112,17 +1139,17 @@ dataset.sle_hist  = (
 dataset.sjogren_syndrome_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(sjs_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(sjs_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(sjs_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(sjs_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(sjs_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1131,17 +1158,17 @@ dataset.sjogren_syndrome_hist = (
 dataset.sys_sclerosis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(sss_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(sss_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(sss_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(sss_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(sss_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1149,17 +1176,17 @@ dataset.sys_sclerosis_hist = (
 dataset.infl_myositis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(im_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(im_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(im_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(im_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(im_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1168,17 +1195,17 @@ dataset.infl_myositis_hist = (
 dataset.mctd_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(mctd_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(mctd_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(mctd_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(mctd_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(mctd_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1187,7 +1214,7 @@ dataset.mctd_hist = (
 dataset.antiphos_syndrome_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(as_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1204,17 +1231,17 @@ dataset.grp2_outcome_hist = (dataset.sle_hist |
 dataset.psoriasis_hist = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(psoriasis_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(psoriasis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(psoriasis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(psoriasis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(psoriasis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1223,17 +1250,17 @@ dataset.psoriasis_hist = (
 dataset.hydra_supp_hist = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(hs_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(hs_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(hs_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(hs_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(hs_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1246,17 +1273,17 @@ dataset.grp3_outcome_hist = (dataset.psoriasis_hist |
 dataset.crohn_disease_hist = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(crohn_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(crohn_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(crohn_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(crohn_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(crohn_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1265,17 +1292,17 @@ dataset.crohn_disease_hist = (
 dataset.ulcerative_colitis_hist = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(uc_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(uc_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(uc_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(uc_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(uc_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1284,17 +1311,17 @@ dataset.ulcerative_colitis_hist = (
 dataset.celiac_disease_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(celiac_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(celiac_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(celiac_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(celiac_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(celiac_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1304,17 +1331,17 @@ dataset.ibd_hist = (
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(ibd_code_snomed) |
     clinical_events.ctv3_code.is_in(ibd_code_ctv3)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(ibd_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(ibd_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(ibd_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(ibd_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1329,17 +1356,17 @@ dataset.grp4_outcome_hist = (dataset.crohn_disease_hist |
 dataset.addison_disease_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(addison_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(addison_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(addison_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(addison_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(addison_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1348,17 +1375,17 @@ dataset.addison_disease_hist = (
 dataset.grave_disease_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(grave_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(grave_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(grave_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(grave_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(grave_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1367,17 +1394,17 @@ dataset.grave_disease_hist = (
 dataset.hashimoto_thyroiditis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(hashimoto_thyroiditis_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(hashimoto_thyroiditis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(hashimoto_thyroiditis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(hashimoto_thyroiditis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(hashimoto_thyroiditis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1391,17 +1418,17 @@ dataset.grp5_outcome_hist = (dataset.addison_disease_hist |
 dataset.anca_associated_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(anca_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(anca_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(anca_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(anca_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(anca_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1410,17 +1437,17 @@ dataset.anca_associated_hist = (
 dataset.giant_cell_arteritis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(gca_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(gca_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(gca_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(gca_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(gca_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1429,17 +1456,17 @@ dataset.giant_cell_arteritis_hist = (
 dataset.iga_vasculitis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(iga_vasculitis_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(iga_vasculitis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(iga_vasculitis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(iga_vasculitis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(iga_vasculitis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1448,17 +1475,17 @@ dataset.iga_vasculitis_hist = (
 dataset.polymyalgia_rheumatica_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(pmr_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(pmr_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(pmr_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(pmr_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(pmr_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1473,17 +1500,17 @@ dataset.grp6_outcome_hist = (dataset.anca_associated_hist |
 dataset.immune_thrombocytopenia_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(immune_thromb_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(immune_thromb_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(immune_thromb_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(immune_thromb_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(immune_thromb_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1492,17 +1519,17 @@ dataset.immune_thrombocytopenia_hist = (
 dataset.pernicious_anaemia_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(pernicious_anaemia_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(pernicious_anaemia_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(pernicious_anaemia_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(pernicious_anaemia_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(pernicious_anaemia_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1512,17 +1539,17 @@ dataset.aplastic_anaemia_hist = (
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(apa_code_snomed) |
          clinical_events.ctv3_code.is_in(apa_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(apa_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(apa_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(apa_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(apa_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1531,17 +1558,17 @@ dataset.aplastic_anaemia_hist = (
 dataset.aha_anaemia_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(aha_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(aha_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(aha_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(aha_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(aha_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1556,17 +1583,17 @@ dataset.grp7_outcome_hist = (dataset.immune_thrombocytopenia_hist |
 dataset.guillain_barre_hist = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(glb_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(glb_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(glb_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(glb_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(glb_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1575,17 +1602,17 @@ dataset.guillain_barre_hist = (
 dataset.multiple_sclerosis_hist = (    
     (clinical_events.where(
         (clinical_events.ctv3_code.is_in(multiple_sclerosis_code_ctv)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(multiple_sclerosis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(multiple_sclerosis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(multiple_sclerosis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(multiple_sclerosis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1594,17 +1621,17 @@ dataset.multiple_sclerosis_hist = (
 dataset.myasthenia_gravis_anaemia_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(myasthenia_gravis_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(myasthenia_gravis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(myasthenia_gravis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(myasthenia_gravis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(myasthenia_gravis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1613,17 +1640,17 @@ dataset.myasthenia_gravis_anaemia_hist = (
 dataset.longitudinal_myelitis_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(longit_myelitis_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(longit_myelitis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(longit_myelitis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(longit_myelitis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(longit_myelitis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
@@ -1632,17 +1659,17 @@ dataset.longitudinal_myelitis_hist = (
 dataset.clinically_isolated_syndrome_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(cis_code_snomed)) &
-    (clinical_events.date.is_before(index_date))
+    (clinical_events.date.is_before(start_date))
     ).exists_for_patient()) |
     (apcs.where(
         ((apcs.primary_diagnosis.is_in(cis_code_icd)) | 
         (apcs.secondary_diagnosis.is_in(cis_code_icd))) &
-        (apcs.admission_date.is_before(index_date))
+        (apcs.admission_date.is_before(start_date))
     ).exists_for_patient()) |
     (opa_diag.where(
         ((opa_diag.primary_diagnosis_code.is_in(cis_code_icd)) | 
         (opa_diag.secondary_diagnosis_code_1.is_in(cis_code_icd))) &
-        (opa_diag.appointment_date.is_before(index_date))
+        (opa_diag.appointment_date.is_before(start_date))
     ).exists_for_patient())
 )
 
