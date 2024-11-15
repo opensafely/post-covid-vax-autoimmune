@@ -1,8 +1,8 @@
 #### load required packages ####
-library('tidyverse')
-library('yaml')
-library('here')
-library('glue')
+library("tidyverse")
+library("yaml")
+library("here")
+library("glue")
 
 
 #### create defaults list ####
@@ -46,7 +46,7 @@ action <- function(
   outputs[sapply(outputs, is.null)] <- NULL
   
   action <- list(
-    run = paste(c(run, arguments), collapse=" "),
+    run = paste(c(run, arguments), collapse = " "),
     dummy_data_file = dummy_data_file,
     needs = needs,
     outputs = outputs
@@ -94,7 +94,7 @@ project_list <- splice(
 
 #### convert list to yaml and output yaml file ####
 # convert list to yaml and output yaml file
-as.yaml(project_list, indent=2) %>%
+as.yaml(project_list, indent = 2) %>%
   # convert comment actions to comments
   convert_comment_actions() %>%
   # add one blank line before level 1 and level 2 keys
@@ -104,4 +104,4 @@ as.yaml(project_list, indent=2) %>%
 print("YAML file printed!")
 
 # return number of actions
-print(paste0("YAML created with ",length(actions_list)," actions."))
+print(paste0("YAML created with ", length(actions_list), " actions."))
