@@ -51,6 +51,12 @@ has_region = practice_registrations.for_patient_on(
     start_date
 ).practice_nuts1_region_name.is_not_null()
 
+# find patients who were alive on study start date
+is_alive = (((patients.date_of_death.is_null()) | 
+             (patients.date_of_death.is_after(start_date))) & 
+             ((ons_deaths.date.is_null()) | 
+              (ons_deaths.date.is_after(start_date))))
+
 
 ## create dataset with inclusion criteria
 dataset.define_population(
@@ -59,12 +65,13 @@ dataset.define_population(
     (has_registration.exists_for_patient()) &
     ((patients.sex == "male") | (patients.sex == "female")) &
     (has_deprivation_index) &
-    (has_region))
+    (has_region) &
+    (is_alive))
 
 
 ## add potential confounders to dataset
 dataset.date_registered = practice_registrations.sort_by(practice_registrations.start_date).last_for_patient().start_date
-dataset.date_deregidtered = practice_registrations.sort_by(practice_registrations.end_date).last_for_patient().end_date
+dataset.date_deresidtered = practice_registrations.sort_by(practice_registrations.end_date).last_for_patient().end_date
 # add patients date of birth as column
 dataset.dob = patients.date_of_birth
 
