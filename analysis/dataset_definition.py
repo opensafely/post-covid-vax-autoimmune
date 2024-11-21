@@ -34,12 +34,9 @@ prior_followup_end_date = "2021-09-30"
 ## defining inclusion criteria
 # find patients who are have 6 month prior follow-up in study period
 has_registration = practice_registrations.where(
-    practice_registrations.start_date.is_on_or_between(prior_followup_start_date, prior_followup_end_date) |
-    practice_registrations.end_date.is_on_or_between(start_date + days(1), end_date) |
-    (practice_registrations.start_date.is_on_or_before(prior_followup_end_date) &
-    (practice_registrations.end_date.is_on_or_after(start_date + days(1)) |
-     practice_registrations.end_date.is_null()))
-)
+    (practice_registrations.start_date.is_on_or_before(prior_followup_start_date)) &
+    ((practice_registrations.end_date.is_on_or_after(start_date + days(1))) |
+    (practice_registrations.end_date.is_null())))
 
 # find patients with known deprivation
 has_deprivation_index = addresses.for_patient_on(
@@ -71,7 +68,7 @@ dataset.define_population(
 
 ## add potential confounders to dataset
 dataset.date_registered = practice_registrations.sort_by(practice_registrations.start_date).last_for_patient().start_date
-dataset.date_deresidtered = practice_registrations.sort_by(practice_registrations.end_date).last_for_patient().end_date
+dataset.date_deregistered = practice_registrations.sort_by(practice_registrations.end_date).last_for_patient().end_date
 # add patients date of birth as column
 dataset.dob = patients.date_of_birth
 
