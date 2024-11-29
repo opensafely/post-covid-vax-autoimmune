@@ -1,5 +1,3 @@
-import numpy as np
-
 from ehrql import create_dataset, case, when, days, minimum_of
 from ehrql.tables.tpp import (
     patients, 
@@ -21,7 +19,7 @@ from codelists import *
 dataset = create_dataset()
 
 # set size of dummy dataset
-dataset.configure_dummy_data(population_size = 10000)
+dataset.configure_dummy_data(population_size = 1000, timeout = 600)
 
 # define start and end dates
 start_date = "2020-01-29"

@@ -8,7 +8,7 @@ library("glue")
 #### create defaults list ####
 defaults_list <- list(
   version = "3.0",
-  expectations = list(population_size = 10000L)
+  expectations = list(population_size = 1000L)
 )
 
 
