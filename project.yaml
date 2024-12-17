@@ -1,12 +1,21 @@
 version: '3.0'
 
-# Ignore this`expectation` block. It is required but not used, and will be removed in future versions.
 expectations:
+
   population_size: 1000
 
 actions:
-  generate_dataset:
-    run: ehrql:v1 generate-dataset analysis/dataset_definition.py --output output/dataset.csv.gz
+
+  ## # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+  ## DO NOT EDIT project.yaml DIRECTLY 
+  ## This file is created by create_project_actions.R 
+  ## Edit and run create_project_actions.R to update the project.yaml 
+  ## # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+
+  generate_study_population:
+    run: "ehrql:v1 generate-dataset analysis/dataset_definition.py \n    --output
+      output/study_data.csv"
     outputs:
       highly_sensitive:
-        dataset: output/dataset.csv.gz
+        cohort: output/study_data.csv
+
