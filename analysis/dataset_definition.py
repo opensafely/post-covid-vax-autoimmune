@@ -31,10 +31,7 @@ prior_followup_end_date = "2021-09-30"
 
 ## defining inclusion criteria
 # find patients who are have 6 month prior follow-up in study period
-has_registration = practice_registrations.where(
-    (practice_registrations.start_date.is_on_or_before(prior_followup_start_date)) &
-    ((practice_registrations.end_date.is_on_or_after(start_date + days(1))) |
-    (practice_registrations.end_date.is_null())))
+has_registration = practice_registrations.spanning(prior_followup_start_date, start_date)
 
 # find patients with known deprivation
 has_deprivation_index = addresses.for_patient_on(
@@ -47,8 +44,7 @@ has_region = practice_registrations.for_patient_on(
 ).practice_nuts1_region_name.is_not_null()
 
 # find patients who were alive on study start date
-is_alive = (((patients.date_of_death.is_null()) | 
-             (patients.date_of_death.is_after(start_date))) & 
+is_alive = (patients.is_alive_on(start_date) & 
              ((ons_deaths.date.is_null()) | 
               (ons_deaths.date.is_after(start_date))))
 
@@ -85,20 +81,7 @@ dataset.ethnicity = (
 
 # add imd decile column
 imd_rounded = addresses.for_patient_on(start_date).imd_rounded
-max_imd = 32844
-
-imd_decile = case(
-    when(imd_rounded < int(max_imd/10)).then(1),
-    when(imd_rounded < int(max_imd/5)).then(2),
-    when(imd_rounded < int(max_imd*(3/10))).then(3),
-    when(imd_rounded < int(max_imd*(2/5))).then(4),
-    when(imd_rounded < int(max_imd/2)).then(5),
-    when(imd_rounded < int(max_imd*(3/5))).then(6),
-    when(imd_rounded < int(max_imd*(7/10))).then(7),
-    when(imd_rounded < int(max_imd*(4/5))).then(8),
-    when(imd_rounded < int(max_imd*(9/10))).then(9),
-    when(imd_rounded <= max_imd).then(10),
-)
+imd_decile = addresses.for_patient_on(start_date).imd_decile
 
 dataset.imd_decile = imd_decile
 
@@ -125,6 +108,7 @@ dataset.smoking_status = (
     clinical_events.where(
         clinical_events.ctv3_code.is_in(smoking_clear)
     )
+    .where(clinical_events.date.is_before(start_date))
     .sort_by(clinical_events.date)
     .last_for_patient()
     .ctv3_code.to_category(smoking_clear)
