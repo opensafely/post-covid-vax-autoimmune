@@ -9,7 +9,8 @@ from ehrql.tables.tpp import (
     apcs,
     opa_diag,
     medications,
-    ons_deaths
+    ons_deaths,
+    vaccinations
 )
 
 # import codelists
@@ -61,10 +62,15 @@ dataset.define_population(
 
 
 ## add potential confounders to dataset
+# add registration and deregistration dates
 dataset.date_registered = practice_registrations.sort_by(practice_registrations.start_date).last_for_patient().start_date
 dataset.date_deregistered = practice_registrations.sort_by(practice_registrations.end_date).last_for_patient().end_date
+
 # add patients date of birth as column
 dataset.dob = patients.date_of_birth
+
+# add date of death column
+dataset.death_date = ons_deaths.date
 
 # add patient's sex as column
 dataset.sex = patients.sex
@@ -80,9 +86,7 @@ dataset.ethnicity = (
 )
 
 # add imd decile column
-imd_rounded = addresses.for_patient_on(start_date).imd_rounded
 imd_decile = addresses.for_patient_on(start_date).imd_decile
-
 dataset.imd_decile = imd_decile
 
 # add region column
@@ -126,81 +130,46 @@ dataset.carehome_resident = (
     addresses.for_patient_on(start_date).care_home_does_not_require_nursing
 )
 
-# add date of death column
-dataset.death_date = ons_deaths.date
+
+## covariates from clinical events and apcs tables
+# defining "before" tables
+clinical_events_before = clinical_events.where(clinical_events.date.is_before(start_date))
+apcs_before = apcs.where(apcs.admission_date.is_before(start_date))
+opa_diag_before = opa_diag.where(opa_diag.appointment_date.is_before(start_date))
+
+# creating function for "clinical event" covariates
+def diagnosis_of(column_name, snomedcode, icd_code):
+
+  dataset.add_column(column_name, (    
+      (clinical_events.where(
+          (clinical_events.snomedct_code.is_in(snomedcode)) &
+      (clinical_events.date.is_before(start_date))
+      ).exists_for_patient()) |
+      (apcs.where(
+          ((apcs.primary_diagnosis.is_in(icd_code)) | 
+          (apcs.secondary_diagnosis.is_in(icd_code))) &
+          (apcs.admission_date.is_before(start_date))
+      ).exists_for_patient()) |
+      (opa_diag.where(
+          ((opa_diag.primary_diagnosis_code.is_in(icd_code)) | 
+          (opa_diag.secondary_diagnosis_code_1.is_in(icd_code))) &
+          (opa_diag.appointment_date.is_before(start_date))
+      ).exists_for_patient())
+  )
+  )
 
 # add dementia column
-dataset.dementia = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(
-            dementia_snomed_clinical + dementia_vascular_snomed_clinical)) &
-        (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(dementia_icd10 + dementia_vascular_icd10)) | 
-        (apcs.secondary_diagnosis.is_in(dementia_icd10 + dementia_vascular_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(dementia_icd10 + dementia_vascular_icd10)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(dementia_icd10 + dementia_vascular_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("dementia", dementia_snomed_clinical + dementia_vascular_snomed_clinical,
+             dementia_icd10 + dementia_vascular_icd10)
 
 # add liver disease column
-dataset.liver_disease = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(liver_disease_snomed_clinical)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(liver_disease_icd10)) | 
-        (apcs.secondary_diagnosis.is_in(liver_disease_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(liver_disease_icd10)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(liver_disease_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("liver_disease", liver_disease_snomed_clinical, liver_disease_icd10)
 
 # add chonic kidney disease column
-dataset.chronic_kidney_disease = (
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(ckd_snomed_clinical)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(ckd_icd10)) |
-        (apcs.secondary_diagnosis.is_in(ckd_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(ckd_icd10)) |
-        (opa_diag.secondary_diagnosis_code_1.is_in(ckd_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("chronic_kidney_disease", ckd_snomed_clinical, ckd_icd10)
 
 # add cancer column
-dataset.cancer = (        
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(cancer_snomed_clinical)) &
-        (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(cancer_icd10)) | 
-        (apcs.secondary_diagnosis.is_in(cancer_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-        (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(cancer_icd10)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(cancer_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("cancer", cancer_snomed_clinical, cancer_icd10)
 
 # add hypertention column
 dataset.hypertension = (
@@ -257,76 +226,16 @@ dataset.diabetes = (
 )
 
 # add obesity column
-dataset.obesity = (
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(bmi_obesity_snomed_clinical)) &
-        (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(bmi_obesity_icd10)) |
-        (apcs.secondary_diagnosis.is_in(bmi_obesity_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(bmi_obesity_icd10)) |
-        (opa_diag.secondary_diagnosis_code_1.is_in(bmi_obesity_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("obesity", bmi_obesity_snomed_clinical, bmi_obesity_icd10)
 
 # add chronic obstructive pulmonary diease (copd) column
-dataset.copd = (
-    (clinical_events.where(
-        ((clinical_events.snomedct_code.is_in(copd_snomed_clinical))) &
-        (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(copd_icd10)) |
-        (apcs.secondary_diagnosis.is_in(copd_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(copd_icd10)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(copd_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("copd", copd_snomed_clinical, copd_icd10)
 
 # add acute myocardial infarction (ami) column
-dataset.ami = (        
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(ami_snomed_clinical)) &
-        (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(ami_icd10 + ami_prior_icd10)) | 
-        (apcs.secondary_diagnosis.is_in(ami_icd10 + ami_prior_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(ami_icd10 + ami_prior_icd10)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(ami_icd10 + ami_prior_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("ami", ami_snomed_clinical, ami_icd10 + ami_prior_icd10)
 
 # add ischaemic stroke column
-dataset.ischaemic_stroke = (        
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(stroke_isch_snomed_clinical)) &
-        (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(stroke_isch_icd10)) | 
-        (apcs.secondary_diagnosis.is_in(stroke_isch_icd10))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(stroke_isch_icd10)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(stroke_isch_icd10))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+diagnosis_of("ischaemic_stroke", stroke_isch_snomed_clinical, stroke_isch_icd10)
 
 
 ## add exposures to dataset
@@ -352,40 +261,20 @@ dataset.covid19_date = minimum_of(covid19_primarycare_date,
                                   covid19_secondarycare_date2)
 
 # add date of COVID19 vaccine columns
-dataset.date_covid19_vax1 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_adm_1)
-).sort_by(clinical_events.date).first_for_patient().date)
+covid_vaccinations = (
+  vaccinations
+  .where(vaccinations.target_disease.is_in(["SARS-2 CORONAVIRUS"]))
+  .sort_by(vaccinations.date)
+)
 
-dataset.date_covid19_vax2 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_adm_2)
-).sort_by(clinical_events.date).first_for_patient().date)
+previous_vax_date = "1899-01-01"
 
-dataset.date_covid19_vax3 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_adm_3)
-).sort_by(clinical_events.date).first_for_patient().date)
+for i in range(1, 10+1):
 
-dataset.date_covid19_vax4 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_adm_4)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-dataset.date_covid19_vax5 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_adm_5)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-# add date for ChAdOx1 vaccine
-dataset.date_chadox1 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_chadox1_dose)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-# add date for BNT162b2 vaccine
-dataset.date_bnt162b2 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_bnt_dose)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-# add date for mRNA-1273 vaccine
-dataset.date_mrna1273 = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(vac_mrna_dose)
-).sort_by(clinical_events.date).first_for_patient().date)
+    current_vax = covid_vaccinations.where(covid_vaccinations.date>previous_vax_date).first_for_patient()
+    dataset.add_column(f"covid_vax_{i}_date", current_vax.date)
+    dataset.add_column(f"covid_vax_type_{i}", current_vax.product_name)
+    previous_vax_date = current_vax.date
 
 
 ## add outcome dates to the dataset
@@ -1031,288 +920,131 @@ dataset.composite_ai_outcome = minimum_of(dataset.grp1_outcome,
 
 
 ## add binary variable for outcomes before start date
-# add history of rheumatoid arthritis onset column
-# add liver disease column
-dataset.rheumatoid_arthritis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(ra_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(ra_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(ra_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(ra_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(ra_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# create function for generating "history_of" variables
+def history_of_ctv(column_name, ctv3code, icd_code):
+
+  dataset.add_column(column_name, (    
+      (clinical_events.where(
+          (clinical_events.ctv3_code.is_in(ctv3code)) &
+      (clinical_events.date.is_before(start_date))
+      ).exists_for_patient()) |
+      (apcs.where(
+          ((apcs.primary_diagnosis.is_in(icd_code)) | 
+          (apcs.secondary_diagnosis.is_in(icd_code))) &
+          (apcs.admission_date.is_before(start_date))
+      ).exists_for_patient()) |
+      (opa_diag.where(
+          ((opa_diag.primary_diagnosis_code.is_in(icd_code)) | 
+          (opa_diag.secondary_diagnosis_code_1.is_in(icd_code))) &
+          (opa_diag.appointment_date.is_before(start_date))
+      ).exists_for_patient())
+  )
+  )
+
+def history_of_snomed(column_name, snomedcode, icd_code):
+
+  dataset.add_column(column_name, (    
+      (clinical_events.where(
+          (clinical_events.snomedct_code.is_in(snomedcode)) &
+      (clinical_events.date.is_before(start_date))
+      ).exists_for_patient()) |
+      (apcs.where(
+          ((apcs.primary_diagnosis.is_in(icd_code)) | 
+          (apcs.secondary_diagnosis.is_in(icd_code))) &
+          (apcs.admission_date.is_before(start_date))
+      ).exists_for_patient()) |
+      (opa_diag.where(
+          ((opa_diag.primary_diagnosis_code.is_in(icd_code)) | 
+          (opa_diag.secondary_diagnosis_code_1.is_in(icd_code))) &
+          (opa_diag.appointment_date.is_before(start_date))
+      ).exists_for_patient())
+  )
+  )
+
+history_of_ctv("hydra_supp_hist1", hs_code_ctv, hs_code_icd)
+history_of_ctv("crohn_disease_hist1", crohn_code_ctv, crohn_code_icd)
 
 
-# add history of undifferentiated inflammatory arthritis (undiff_eia) onset column
+## add history of group 1 outcomes
+# history of Rheumatoid Arthritis
+history_of_snomed("rheu_arth_hist", ra_code_snomed, ra_code_icd)
+
+# history of Undifferentiated Inflammatory Arthritis
 dataset.undiff_eia_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(undiff_eia_code_snomed)) &
     (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()))
+    ).exists_for_patient())) 
 
+# history of Psoriatic Arthritis
+history_of_snomed("psor_arth_hist", psoa_code_snomed, psoa_code_icd) 
 
-# add history of psoriatic arthritis onset column
-dataset.psoriatic_arthitis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(psoa_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(psoa_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(psoa_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(psoa_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(psoa_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# history of Axial Spondyloarthritis
+history_of_snomed("axial_arth_hist", axial_code_snomed, axial_code_icd) 
 
-# add history of axial spondyloarthritis (axial) onset column
-dataset.axial_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(axial_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(axial_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(axial_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(axial_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(axial_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of any group 1 AI outcome onset column
-dataset.grp1_outcome_hist = (dataset.rheumatoid_arthritis_hist |
+# history of any group1 outcome
+dataset.grp1_outcome_hist = (dataset.rheu_arth_hist |
                              dataset.undiff_eia_hist |
-                             dataset.psoriatic_arthitis_hist |
-                             dataset.axial_hist)
+                             dataset.psor_arth_hist |
+                             dataset.axial_arth_hist)
 
+
+## add history of group2 outcomes
 # add history of systemic lupus erythematosus (sle) onset column
-dataset.sle_hist  = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(sle_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(sle_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(sle_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(sle_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(sle_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
+history_of_ctv("sle_hist", sle_code_ctv, sle_code_icd)
 
 # add history of sjogren's syndrome onset column
-dataset.sjogren_syndrome_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(sjs_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(sjs_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(sjs_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(sjs_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(sjs_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
+history_of_snomed("sjogren_hist", sjs_code_snomed, sjs_code_icd)
 
 # add history of systemic sclerosis/scleroderma (sys_sclerosis) onset column
-dataset.sys_sclerosis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(sss_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(sss_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(sss_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(sss_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(sss_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+history_of_snomed("sys_scle_hist", sss_code_snomed, sss_code_icd)
 
 # add hist of inflammatory myositis/polymyositis/dermatolomyositis (infl_myositis) onset column
-dataset.infl_myositis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(im_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(im_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(im_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(im_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(im_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
+history_of_snomed("infl_myo_hist", im_code_snomed, im_code_icd)
 
 # add history of mixed connective tissue disease (mctd) onset column
-dataset.mctd_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(mctd_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(mctd_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(mctd_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(mctd_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(mctd_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+history_of_snomed("mctd_hist", mctd_code_snomed, mctd_code_icd)
 
-
-# add history of antiphospholipid syndrome (antiphos_syndrome) onset column
-dataset.antiphos_syndrome_hist = (    
+# add history of antiphospholipid syndrome onset column
+dataset.antiphos_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(as_code_snomed)) &
     (clinical_events.date.is_before(start_date))
     ).exists_for_patient())
 )
 
-
 # add history of any group2 AI outcome onset column
 dataset.grp2_outcome_hist = (dataset.sle_hist |
-                             dataset.sjogren_syndrome_hist |
-                             dataset.sys_sclerosis_hist |
-                             dataset.infl_myositis_hist |
+                             dataset.sjogren_hist |
+                             dataset.sys_scle_hist |
+                             dataset.infl_myo_hist |
                              dataset.mctd_hist |
-                             dataset.antiphos_syndrome_hist)
-
-# add history of psoriasis onset column
-dataset.psoriasis_hist = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(psoriasis_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(psoriasis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(psoriasis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(psoriasis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(psoriasis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+                             dataset.antiphos_hist)
 
 
-# add history of hydradenitis suppurativa (hyrda_supp) onset column
-dataset.hydra_supp_hist = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(hs_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(hs_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(hs_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(hs_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(hs_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+## add history of group3 outcomes
+# add history of Psoriasis onset column
+history_of_ctv("psoriasis_hist", psoriasis_code_ctv, psoriasis_code_icd)
 
+# add history of Hydradenitis Suppurativa onset column
+history_of_ctv("hydra_supp_hist", hs_code_ctv, hs_code_icd)
 
 # add history of any group3 AI outcome onset column
 dataset.grp3_outcome_hist = (dataset.psoriasis_hist |
                              dataset.hydra_supp_hist)
 
-# add history of crohn's diseases onset column
-dataset.crohn_disease_hist = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(crohn_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(crohn_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(crohn_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(crohn_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(crohn_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
 
+## add history of group4 outcomes
+# add history of Crohn's disease column
+history_of_ctv("crohn_hist", crohn_code_ctv, crohn_code_icd)
 
-# add history of ulcerative colitis onset column
-dataset.ulcerative_colitis_hist = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(uc_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(uc_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(uc_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(uc_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(uc_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# add history of Ulcerative Colitis column
+history_of_ctv("ulc_col_hist", uc_code_ctv, uc_code_icd)
 
+# add history of Celiac Disease column
+history_of_snomed("celiac_hist", celiac_code_snomed, celiac_code_icd)
 
-# add history of celiac disease onset column
-dataset.celiac_disease_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(celiac_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(celiac_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(celiac_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(celiac_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(celiac_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of inflammatory bowel disease (ibd) onset column
+# add history of Inflammatory Bowel Disease column
 dataset.ibd_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(ibd_code_snomed) |
@@ -1331,197 +1063,56 @@ dataset.ibd_hist = (
     ).exists_for_patient())
 )
 
-
 # add history of any group4 AI outcome onset column
-dataset.grp4_outcome_hist = (dataset.crohn_disease_hist |
-                             dataset.ulcerative_colitis_hist |
-                             dataset.celiac_disease_hist |
+dataset.grp4_outcome_hist = (dataset.crohn_hist |
+                             dataset.ulc_col_hist |
+                             dataset.celiac_hist |
                              dataset.ibd_hist)
 
-# add history of addison's disease onset column
-dataset.addison_disease_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(addison_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(addison_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(addison_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(addison_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(addison_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+## add history of group 5 outcomes
+# add history of Addison's disease column
+history_of_snomed("addison_hist", addison_code_snomed, addison_code_icd)
+
+# add history of Grave's disease column
+history_of_snomed("grave_hist", grave_code_snomed, grave_code_icd)
+
+# add history of Hashimoto's thyroiditis column
+history_of_snomed("hashimoto_hist", hashimoto_thyroiditis_code_snomed, hashimoto_thyroiditis_code_icd)
+
+# add history of any group5 AI outcome column
+dataset.grp5_outcome_hist = (dataset.addison_hist |
+                             dataset.grave_hist |
+                             dataset.hashimoto_hist)
 
 
-# add history of grave's disease onset column
-dataset.grave_disease_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(grave_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(grave_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(grave_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(grave_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(grave_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+## add history of group 6 outcomes
+# add history of ANCA-Associated column
+history_of_snomed("anca_hist", anca_code_snomed, anca_code_icd)
 
+# add history of Giant Cell Arteritis column
+history_of_snomed("gca_hist", gca_code_snomed, gca_code_icd)
 
-# add history of hashimoto's thyroiditis onset column
-dataset.hashimoto_thyroiditis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(hashimoto_thyroiditis_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(hashimoto_thyroiditis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(hashimoto_thyroiditis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(hashimoto_thyroiditis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(hashimoto_thyroiditis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# add history of Immunoglobin A Vasculitis column
+history_of_snomed("iga_vasc_hist", iga_vasculitis_code_snomed, iga_vasculitis_code_icd)
 
-
-# add history of any group5 AI outcome onset column
-dataset.grp5_outcome_hist = (dataset.addison_disease_hist |
-                             dataset.grave_disease_hist |
-                             dataset.hashimoto_thyroiditis_hist)
-
-# add history of anca associated onset column
-dataset.anca_associated_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(anca_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(anca_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(anca_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(anca_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(anca_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of giant cell arteritis onset column
-dataset.giant_cell_arteritis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(gca_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(gca_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(gca_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(gca_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(gca_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add hist of immunoglobulin A vascultisit (iga_vasculitis) onset column
-dataset.iga_vasculitis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(iga_vasculitis_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(iga_vasculitis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(iga_vasculitis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(iga_vasculitis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(iga_vasculitis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of polymyalgia rheumatica (pmr) onset column
-dataset.polymyalgia_rheumatica_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(pmr_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(pmr_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(pmr_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(pmr_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(pmr_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
+# add history of Polymyalgia Rheumatica column
+history_of_snomed("pmr_hist", pmr_code_snomed, pmr_code_icd)
 
 # add history of any group6 AI outcome onset column
-dataset.grp6_outcome_hist = (dataset.anca_associated_hist |
-                             dataset.giant_cell_arteritis_hist |
-                             dataset.iga_vasculitis_hist |
-                             dataset.polymyalgia_rheumatica_hist)
+dataset.grp6_outcome_hist = (dataset.anca_hist |
+                             dataset.gca_hist |
+                             dataset.iga_vasc_hist |
+                             dataset.pmr_hist)
 
-# add history of immune thrombocytopenia onset column
-dataset.immune_thrombocytopenia_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(immune_thromb_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(immune_thromb_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(immune_thromb_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(immune_thromb_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(immune_thromb_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+## add history of group 7 outcomes
+# add history of Immune Thrombocytopenia column
+history_of_snomed("imm_thromb_hist", immune_thromb_code_snomed, immune_thromb_code_icd)
 
+# add history of Pernicious Anaemia column
+history_of_snomed("pern_anaem_hist", pernicious_anaemia_code_snomed, pernicious_anaemia_code_icd)
 
-# add history of pernicious anaemia onset column
-dataset.pernicious_anaemia_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(pernicious_anaemia_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(pernicious_anaemia_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(pernicious_anaemia_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(pernicious_anaemia_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(pernicious_anaemia_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of aplastic anaemia onset column
-dataset.aplastic_anaemia_hist = (    
+# add history of Aplastic Anaemia onset column
+dataset.aplast_anaem_hist = (    
     (clinical_events.where(
         (clinical_events.snomedct_code.is_in(apa_code_snomed) |
          clinical_events.ctv3_code.is_in(apa_code_ctv)) &
@@ -1539,135 +1130,41 @@ dataset.aplastic_anaemia_hist = (
     ).exists_for_patient())
 )
 
+# add history of autoimmune haemolytic anaemia column
+history_of_snomed("auto_haem_anaem_hist", aha_code_snomed, aha_code_icd)
 
-# add history of autoimmune haemolytic anaemia onset column
-dataset.aha_anaemia_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(aha_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(aha_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(aha_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(aha_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(aha_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# add history of any group7 AI outcome column
+dataset.grp7_outcome_hist = (dataset.imm_thromb_hist |
+                             dataset.pern_anaem_hist |
+                             dataset.aplast_anaem_hist |
+                             dataset.auto_haem_anaem_hist)
 
 
-# add history of any group7 AI outcome onset column
-dataset.grp7_outcome_hist = (dataset.immune_thrombocytopenia_hist |
-                             dataset.pernicious_anaemia_hist |
-                             dataset.aplastic_anaemia_hist |
-                             dataset.aha_anaemia_hist)
+## add history of group 8 outcomes
+# add history of Guillain-Barré column
+history_of_ctv("guil_bar_hist", glb_code_ctv, glb_code_icd)
 
-# add history of guillain barré onset column
-dataset.guillain_barre_hist = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(glb_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(glb_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(glb_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(glb_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(glb_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# add history of Multiple Sclerosis column
+history_of_ctv("mult_scler_hist", multiple_sclerosis_code_ctv, multiple_sclerosis_code_icd)
 
+# add history of Myasthenia Gravis column
+history_of_snomed("myas_grav_hist", myasthenia_gravis_code_snomed, myasthenia_gravis_code_icd)
 
-# add history of multiple sclerosis onset column
-dataset.multiple_sclerosis_hist = (    
-    (clinical_events.where(
-        (clinical_events.ctv3_code.is_in(multiple_sclerosis_code_ctv)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(multiple_sclerosis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(multiple_sclerosis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(multiple_sclerosis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(multiple_sclerosis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
+# add history of Longitudinal Myelitis column
+history_of_snomed("long_myel_hist", longit_myelitis_code_snomed, longit_myelitis_code_icd)
 
-
-# add history of myasthenia gravis onset column
-dataset.myasthenia_gravis_anaemia_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(myasthenia_gravis_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(myasthenia_gravis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(myasthenia_gravis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(myasthenia_gravis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(myasthenia_gravis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of longitudinal myelitis onset column
-dataset.longitudinal_myelitis_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(longit_myelitis_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(longit_myelitis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(longit_myelitis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(longit_myelitis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(longit_myelitis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
-
-# add history of clinically isolated syndrome onset column
-dataset.clinically_isolated_syndrome_hist = (    
-    (clinical_events.where(
-        (clinical_events.snomedct_code.is_in(cis_code_snomed)) &
-    (clinical_events.date.is_before(start_date))
-    ).exists_for_patient()) |
-    (apcs.where(
-        ((apcs.primary_diagnosis.is_in(cis_code_icd)) | 
-        (apcs.secondary_diagnosis.is_in(cis_code_icd))) &
-        (apcs.admission_date.is_before(start_date))
-    ).exists_for_patient()) |
-    (opa_diag.where(
-        ((opa_diag.primary_diagnosis_code.is_in(cis_code_icd)) | 
-        (opa_diag.secondary_diagnosis_code_1.is_in(cis_code_icd))) &
-        (opa_diag.appointment_date.is_before(start_date))
-    ).exists_for_patient())
-)
-
+# add history of Clinically Isolated Syndrome column
+history_of_snomed("clin_isol_hist", cis_code_snomed, cis_code_icd)
 
 # add history of any group8 AI outcome onset column
-dataset.grp8_outcome_hist = (dataset.guillain_barre_hist |
-                             dataset.multiple_sclerosis_hist |
-                             dataset.myasthenia_gravis_anaemia_hist |
-                             dataset.longitudinal_myelitis_hist |
-                             dataset.clinically_isolated_syndrome_hist)
+dataset.grp8_outcome_hist = (dataset.guil_bar_hist |
+                             dataset.mult_scler_hist |
+                             dataset.myas_grav_hist |
+                             dataset.long_myel_hist |
+                             dataset.clin_isol_hist)
 
-# add history of any AI outcome onset column
+
+## add history of any AI outcome onset column
 dataset.composite_ai_outcome_hist = (dataset.grp1_outcome_hist |
                                      dataset.grp2_outcome_hist |
                                      dataset.grp3_outcome_hist |
