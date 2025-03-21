@@ -278,24 +278,53 @@ for i in range(1, 10+1):
 
 
 ## add outcome dates to the dataset
+def autoimmune_date_snomed(column_name, snomed_code, icd_code):
+   
+   autoimmune_primary_date = (clinical_events.where(
+      clinical_events.snomedct_code.is_in(snomed_code)
+   ).sort_by(clinical_events.date).first_for_patient().date)
+
+   autoimmune_secondary_date1 = (apcs.where(
+      (apcs.primary_diagnosis.is_in(icd_code) |
+       apcs.secondary_diagnosis.is_in(icd_code))
+   ).sort_by(apcs.admission_date).first_for_patient().admission_date)
+
+   autoimmune_secondary_date2 = (opa_diag.where(
+      (opa_diag.primary_diagnosis_code.is_in(icd_code) |
+       opa_diag.secondary_diagnosis_code_1.is_in(icd_code))
+   ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
+
+   dataset.add_column(column_name, (minimum_of(
+      autoimmune_primary_date,
+      autoimmune_secondary_date1, 
+      autoimmune_secondary_date2))
+   )
+
+def autoimmune_date_ctv(column_name, ctv_code, icd_code):
+   
+   autoimmune_primary_date = (clinical_events.where(
+      clinical_events.ctv3_code.is_in(ctv_code)
+   ).sort_by(clinical_events.date).first_for_patient().date)
+
+   autoimmune_secondary_date1 = (apcs.where(
+      (apcs.primary_diagnosis.is_in(icd_code) |
+       apcs.secondary_diagnosis.is_in(icd_code))
+   ).sort_by(apcs.admission_date).first_for_patient().admission_date)
+
+   autoimmune_secondary_date2 = (opa_diag.where(
+      (opa_diag.primary_diagnosis_code.is_in(icd_code) |
+       opa_diag.secondary_diagnosis_code_1.is_in(icd_code))
+   ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
+
+   dataset.add_column(column_name, (minimum_of(
+      autoimmune_primary_date,
+      autoimmune_secondary_date1, 
+      autoimmune_secondary_date2))
+   )
+
+
 # add date of rheumatoid arthritis onset column
-rheumatoid_arthritis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(ra_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-rheumatoid_arthritis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(ra_code_icd) |
-    apcs.secondary_diagnosis.is_in(ra_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-rheumatoid_arthritis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(ra_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(ra_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.rheumatoid_arthritis = minimum_of(rheumatoid_arthritis_primary_date,
-                                              rheumatoid_arthritis_secondary_date1,
-                                              rheumatoid_arthritis_secondary_date2)
+autoimmune_date_snomed("rheu_arth", ra_code_snomed, ra_code_icd)
 
 # add date of undifferentiated inflammatory arthritis (undiff_eia) onset column
 dataset.undiff_eia = (clinical_events.where(
@@ -303,255 +332,66 @@ dataset.undiff_eia = (clinical_events.where(
 ).sort_by(clinical_events.date).first_for_patient().date)
 
 # add date of psoriatic arthritis onset column
-psoriatic_arthritis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(psoa_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-psoriatic_arthritis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(psoa_code_icd) |
-    apcs.secondary_diagnosis.is_in(psoa_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-psoriatic_arthritis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(psoa_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(psoa_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.psoriatic_arthitis = minimum_of(psoriatic_arthritis_primary_date,
-                                        psoriatic_arthritis_secondary_date1,
-                                        psoriatic_arthritis_secondary_date2)
+autoimmune_date_snomed("psor_arth", psoa_code_snomed, psoa_code_icd)
 
 # add date of axial spondyloarthritis (axial) onset column
-axial_arthritis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(axial_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-axial_arthritis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(axial_code_icd) |
-    apcs.secondary_diagnosis.is_in(axial_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-axial_arthritis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(axial_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(axial_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.axial = minimum_of(axial_arthritis_primary_date,
-                           axial_arthritis_secondary_date1,
-                           axial_arthritis_secondary_date2)
+autoimmune_date_snomed("axial_arth", axial_code_snomed, axial_code_icd)
 
 # add date of any group 1 AI outcome onset column
-dataset.grp1_outcome = minimum_of(dataset.rheumatoid_arthritis,
+dataset.grp1_outcome = minimum_of(dataset.rheu_arth,
                                   dataset.undiff_eia,
-                                  dataset.psoriatic_arthitis,
-                                  dataset.axial)
+                                  dataset.psor_arth,
+                                  dataset.axial_arth)
+
 
 # add date of systemic lupus erythematosus (sle) onset column
-sle_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(sle_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-sle_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(sle_code_icd) |
-    apcs.secondary_diagnosis.is_in(sle_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-sle_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(sle_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(sle_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.sle = minimum_of(sle_primary_date,
-                         sle_secondary_date1,
-                         sle_secondary_date2)
+autoimmune_date_ctv("sle", sle_code_ctv, sle_code_icd)
 
 # add date of sjogren's syndrome onset column
-sjogren_syndrome_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(sjs_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-sjogren_syndrome_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(sjs_code_icd) |
-    apcs.secondary_diagnosis.is_in(sjs_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-sjogren_syndrome_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(sjs_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(sjs_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.sjogren_syndrome = minimum_of(sjogren_syndrome_primary_date,
-                                      sjogren_syndrome_secondary_date1,
-                                      sjogren_syndrome_secondary_date2)
+autoimmune_date_snomed("sjogren", sjs_code_snomed, sjs_code_icd)
 
 # add date of systemic sclerosis/scleroderma (sys_sclerosis) onset column
-sss_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(sss_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-sss_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(sss_code_icd) |
-    apcs.secondary_diagnosis.is_in(sss_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-sss_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(sss_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(sss_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.sys_sclerosis = minimum_of(sss_primary_date,
-                                   sss_secondary_date1,
-                                   sss_secondary_date2)
+autoimmune_date_snomed("sys_scler", sss_code_snomed, sss_code_icd)
 
 # add date of inflammatory myositis/polymyositis/dermatolomyositis (infl_myositis) onset column
-im_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(im_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-im_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(im_code_icd) |
-    apcs.secondary_diagnosis.is_in(im_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-im_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(im_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(im_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.infl_myositis = minimum_of(im_primary_date,
-                                   im_secondary_date1,
-                                   im_secondary_date2)
+autoimmune_date_snomed("infl_myos", im_code_snomed, im_code_icd)
 
 # add date of mixed connective tissue disease (mctd) onset column
-mctd_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(mctd_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-mctd_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(mctd_code_icd) |
-    apcs.secondary_diagnosis.is_in(mctd_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-mctd_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(mctd_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(mctd_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.mctd = minimum_of(mctd_primary_date,
-                          mctd_secondary_date1,
-                          mctd_secondary_date2)
+autoimmune_date_snomed("mctd", mctd_code_snomed, mctd_code_icd)
 
 # add date of antiphospholipid syndrome (antiphos_syndrome) onset column
-dataset.antiphos_syndrome = (clinical_events.where(
+dataset.antiphos = (clinical_events.where(
     clinical_events.snomedct_code.is_in(as_code_snomed)
 ).sort_by(clinical_events.date).first_for_patient().date)
 
 # add date of any group2 AI outcome onset column
 dataset.grp2_outcome = minimum_of(dataset.sle,
-                                  dataset.sjogren_syndrome,
-                                  dataset.sys_sclerosis,
-                                  dataset.infl_myositis,
+                                  dataset.sjogren,
+                                  dataset.sys_scler,
+                                  dataset.infl_myos,
                                   dataset.mctd,
-                                  dataset.antiphos_syndrome)
+                                  dataset.antiphos)
+
 
 # add date of psoriasis onset column
-psoriasis_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(psoriasis_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-psoriasis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(psoriasis_code_icd) |
-    apcs.secondary_diagnosis.is_in(psoriasis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-psoriasis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(psoriasis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(psoriasis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.psoriasis = minimum_of(psoriasis_primary_date,
-                               psoriasis_secondary_date1,
-                               psoriasis_secondary_date2)
+autoimmune_date_ctv("psoriasis", psoriasis_code_ctv, psoriasis_code_icd)
 
 # add date of hydradenitis suppurativa (hyrda_supp) onset column
-hs_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(hs_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-hs_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(hs_code_icd) |
-    apcs.secondary_diagnosis.is_in(hs_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-hs_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(hs_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(hs_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.hydra_supp = minimum_of(hs_primary_date,
-                                hs_secondary_date1,
-                                hs_secondary_date2)
+autoimmune_date_ctv("hydra_supp", hs_code_ctv, hs_code_icd)
 
 # add date of any group3 AI outcome onset column
 dataset.grp3_outcome = minimum_of(dataset.psoriasis,
                                   dataset.hydra_supp)
 
+
 # add date of crohn's diseases onset column
-cd_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(crohn_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-cd_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(crohn_code_icd) |
-    apcs.secondary_diagnosis.is_in(crohn_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-cd_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(crohn_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(crohn_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.crohn_disease = minimum_of(hs_primary_date,
-                                   hs_secondary_date1,
-                                   hs_secondary_date2)
+autoimmune_date_ctv("crohn", crohn_code_ctv, crohn_code_icd)
 
 # add date of ulcerative colitis onset column
-uc_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(uc_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-uc_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(uc_code_icd) |
-    apcs.secondary_diagnosis.is_in(uc_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-uc_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(uc_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(uc_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.ulcerative_colitis = minimum_of(uc_primary_date,
-                                        uc_secondary_date1,
-                                        uc_secondary_date2)
+autoimmune_date_ctv("ulc_col", uc_code_ctv, uc_code_icd)
 
 # add date of celiac disease onset column
-celiac_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(celiac_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-celiac_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(celiac_code_icd) |
-    apcs.secondary_diagnosis.is_in(celiac_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-celiac_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(celiac_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(celiac_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.celiac_disease = minimum_of(celiac_primary_date,
-                                    celiac_secondary_date1,
-                                    celiac_secondary_date2)
+autoimmune_date_snomed("celiac", celiac_code_snomed, celiac_code_icd)
 
 # add date of inflammatory bowel disease (ibd) onset column
 ibd_primary_date = (clinical_events.where(
@@ -574,192 +414,56 @@ dataset.ibd = minimum_of(ibd_primary_date,
                          ibd_secondary_date2)
 
 # add date of any group4 AI outcome onset column
-dataset.grp4_outcome = minimum_of(dataset.crohn_disease,
-                                  dataset.ulcerative_colitis,
-                                  dataset.celiac_disease,
+dataset.grp4_outcome = minimum_of(dataset.crohn,
+                                  dataset.ulc_col,
+                                  dataset.celiac,
                                   dataset.ibd)
 
+
 # add date of addison's disease onset column
-addison_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(addison_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-addison_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(addison_code_icd) |
-    apcs.secondary_diagnosis.is_in(addison_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-addison_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(addison_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(addison_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.addison_disease = minimum_of(addison_primary_date,
-                                     addison_secondary_date1,
-                                     addison_secondary_date2)
+autoimmune_date_snomed("addison", addison_code_snomed, addison_code_icd)
 
 # add date of grave's disease onset column
-grave_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(grave_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-grave_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(grave_code_icd) |
-    apcs.secondary_diagnosis.is_in(grave_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-grave_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(grave_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(grave_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.grave_disease = minimum_of(grave_primary_date,
-                                   grave_secondary_date1,
-                                   grave_secondary_date2)
+autoimmune_date_snomed("grave", grave_code_snomed, grave_code_icd)
 
 # add date of hashimoto's thyroiditis onset column
-hashimoto_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(hashimoto_thyroiditis_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
+autoimmune_date_snomed("hashimoto", hashimoto_thyroiditis_code_snomed,
+                       hashimoto_thyroiditis_code_icd)
 
-hashimoto_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(hashimoto_thyroiditis_code_icd) |
-    apcs.secondary_diagnosis.is_in(hashimoto_thyroiditis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-hashimoto_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(hashimoto_thyroiditis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(hashimoto_thyroiditis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.hashimoto_thyroiditis = minimum_of(hashimoto_primary_date,
-                                           hashimoto_secondary_date1,
-                                           hashimoto_secondary_date2)
 
 # add date of any group5 AI outcome onset column
-dataset.grp5_outcome = minimum_of(dataset.addison_disease,
-                                  dataset.grave_disease,
-                                  dataset.hashimoto_thyroiditis)
+dataset.grp5_outcome = minimum_of(dataset.addison,
+                                  dataset.grave,
+                                  dataset.hashimoto)
+
 
 # add date of anca associated onset column
-anca_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(anca_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-anca_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(anca_code_icd) |
-    apcs.secondary_diagnosis.is_in(anca_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-anca_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(anca_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(anca_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.anca_associated = minimum_of(anca_primary_date,
-                                     anca_secondary_date1,
-                                     anca_secondary_date2)
+autoimmune_date_snomed("anca", anca_code_snomed, anca_code_icd)
 
 # add date of giant cell arteritis onset column
-gca_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(gca_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-gca_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(gca_code_icd) |
-    apcs.secondary_diagnosis.is_in(gca_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-gca_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(gca_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(gca_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.giant_cell_arteritis = minimum_of(gca_primary_date,
-                                          gca_secondary_date1,
-                                          gca_secondary_date2)
+autoimmune_date_snomed("gca", gca_code_snomed, gca_code_icd)
 
 # add date of immunoglobulin A vascultisit (iga_vasculitis) onset column
-iga_vasculitis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(iga_vasculitis_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-iga_vasculitis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(iga_vasculitis_code_icd) |
-    apcs.secondary_diagnosis.is_in(iga_vasculitis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-iga_vasculitis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(iga_vasculitis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(iga_vasculitis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.iga_vasculitis = minimum_of(iga_vasculitis_primary_date,
-                                    iga_vasculitis_secondary_date1,
-                                    iga_vasculitis_secondary_date2)
+autoimmune_date_snomed("iga_vasc", iga_vasculitis_code_snomed, 
+                       iga_vasculitis_code_icd)
 
 # add date of polymyalgia rheumatica (pmr) onset column
-pmr_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(pmr_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-pmr_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(pmr_code_icd) |
-    apcs.secondary_diagnosis.is_in(pmr_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-pmr_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(pmr_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(pmr_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.polymyalgia_rheumatica = minimum_of(pmr_primary_date,
-                                            pmr_secondary_date1,
-                                            pmr_secondary_date2)
+autoimmune_date_snomed("poly_rheu", pmr_code_snomed, pmr_code_icd)
 
 # add date of any group6 AI outcome onset column
-dataset.grp6_outcome = minimum_of(dataset.anca_associated,
-                                  dataset.giant_cell_arteritis,
-                                  dataset.iga_vasculitis,
-                                  dataset.polymyalgia_rheumatica)
+dataset.grp6_outcome = minimum_of(dataset.anca,
+                                  dataset.gca,
+                                  dataset.iga_vasc,
+                                  dataset.poly_rheu)
+
 
 # add date of immune thrombocytopenia onset column
-immune_thromb_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(immune_thromb_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-immune_thromb_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(immune_thromb_code_icd) |
-    apcs.secondary_diagnosis.is_in(immune_thromb_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-immune_thromb_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(immune_thromb_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(immune_thromb_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.immune_thrombocytopenia = minimum_of(immune_thromb_primary_date,
-                                             immune_thromb_secondary_date1,
-                                             immune_thromb_secondary_date2)
+autoimmune_date_snomed("immu_thromb", immune_thromb_code_snomed,
+                       immune_thromb_code_icd)
 
 # add date of pernicious anaemia onset column
-pernicious_anaemia_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(pernicious_anaemia_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-pernicious_anaemia_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(pernicious_anaemia_code_icd) |
-    apcs.secondary_diagnosis.is_in(pernicious_anaemia_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-pernicious_anaemia_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(pernicious_anaemia_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(pernicious_anaemia_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.pernicious_anaemia = minimum_of(pernicious_anaemia_primary_date,
-                                        pernicious_anaemia_secondary_date1,
-                                        pernicious_anaemia_secondary_date2)
+autoimmune_date_snomed("pern_anaem", pernicious_anaemia_code_snomed,
+                       pernicious_anaemia_code_icd)
 
 # add date of aplastic anaemia onset column
 apa_primary_date = (clinical_events.where(
@@ -777,136 +481,44 @@ apa_secondary_date2 = (opa_diag.where(
     opa_diag.secondary_diagnosis_code_1.is_in(apa_code_icd))
 ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
 
-dataset.aplastic_anaemia = minimum_of(apa_primary_date,
-                                      apa_secondary_date1,
-                                      apa_secondary_date2)
+dataset.apla_anaem = minimum_of(apa_primary_date,
+                                apa_secondary_date1,
+                                apa_secondary_date2)
 
 # add date of autoimmune haemolytic anaemia onset column
-aha_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(aha_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-aha_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(aha_code_icd) |
-    apcs.secondary_diagnosis.is_in(aha_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-aha_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(aha_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(aha_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.ah_anaemia = minimum_of(aha_primary_date,
-                                aha_secondary_date1,
-                                aha_secondary_date2)
+autoimmune_date_snomed("auto_haem_anaem", aha_code_snomed, aha_code_icd)
 
 # add date of any group7 AI outcome onset column
-dataset.grp7_outcome = minimum_of(dataset.immune_thrombocytopenia,
-                                  dataset.pernicious_anaemia,
-                                  dataset.aplastic_anaemia,
-                                  dataset.ah_anaemia)
+dataset.grp7_outcome = minimum_of(dataset.immu_thromb,
+                                  dataset.pern_anaem,
+                                  dataset.apla_anaem,
+                                  dataset.auto_haem_anaem)
+
 
 # add date of guillain barré onset column
-glb_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(glb_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-glb_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(glb_code_icd) |
-    apcs.secondary_diagnosis.is_in(glb_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-glb_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(glb_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(glb_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.guillain_barre = minimum_of(glb_primary_date,
-                                    glb_secondary_date1,
-                                    glb_secondary_date2)
+autoimmune_date_ctv("gui_bar", glb_code_ctv, glb_code_icd)
 
 # add date of multiple sclerosis onset column
-multiple_sclerosis_primary_date = (clinical_events.where(
-    clinical_events.ctv3_code.is_in(multiple_sclerosis_code_ctv)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-multiple_sclerosis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(multiple_sclerosis_code_icd) |
-    apcs.secondary_diagnosis.is_in(multiple_sclerosis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-multiple_sclerosis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(multiple_sclerosis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(multiple_sclerosis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.multiple_sclerosis = minimum_of(multiple_sclerosis_primary_date,
-                                        multiple_sclerosis_secondary_date1,
-                                        multiple_sclerosis_secondary_date2)
+autoimmune_date_ctv("multi_scler", multiple_sclerosis_code_ctv,
+                    multiple_sclerosis_code_icd)
 
 # add date of myasthenia gravis onset column
-myasthenia_gravis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(myasthenia_gravis_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-myasthenia_gravis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(myasthenia_gravis_code_icd) |
-    apcs.secondary_diagnosis.is_in(myasthenia_gravis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-myasthenia_gravis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(myasthenia_gravis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(myasthenia_gravis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.myasthenia_gravis_anaemia = minimum_of(myasthenia_gravis_primary_date,
-                                               myasthenia_gravis_secondary_date1,
-                                               myasthenia_gravis_secondary_date2)
+autoimmune_date_snomed("myas_grav", myasthenia_gravis_code_snomed,
+                       myasthenia_gravis_code_icd)
 
 # add date of longitudinal myelitis onset column
-longit_myelitis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(longit_myelitis_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-longit_myelitis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(longit_myelitis_code_icd) |
-    apcs.secondary_diagnosis.is_in(longit_myelitis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-longit_myelitis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(longit_myelitis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(longit_myelitis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.longitudinal_myelitis = minimum_of(longit_myelitis_primary_date,
-                                           longit_myelitis_secondary_date1,
-                                           longit_myelitis_secondary_date2)
+autoimmune_date_snomed("long_myel", longit_myelitis_code_snomed,
+                       longit_myelitis_code_icd)
 
 # add date of clinically isolated syndrome onset column
-cis_primary_date = (clinical_events.where(
-    clinical_events.snomedct_code.is_in(cis_code_snomed)
-).sort_by(clinical_events.date).first_for_patient().date)
-
-cis_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(cis_code_icd) |
-    apcs.secondary_diagnosis.is_in(cis_code_icd))
-).sort_by(apcs.admission_date).first_for_patient().admission_date)
-
-cis_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(cis_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(cis_code_icd))
-).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
-
-dataset.clinically_isolated_syndrome = minimum_of(cis_primary_date,
-                                                  cis_secondary_date1,
-                                                  cis_secondary_date2)
+autoimmune_date_snomed("cis", cis_code_snomed, cis_code_icd)
 
 # add date of any group8 AI outcome onset column
-dataset.grp8_outcome = minimum_of(dataset.guillain_barre,
-                                  dataset.multiple_sclerosis,
-                                  dataset.myasthenia_gravis_anaemia,
-                                  dataset.longitudinal_myelitis,
-                                  dataset.clinically_isolated_syndrome)
+dataset.grp8_outcome = minimum_of(dataset.gui_bar,
+                                  dataset.multi_scler,
+                                  dataset.myas_grav,
+                                  dataset.long_myel,
+                                  dataset.cis)
 
 # add date of any AI outcome onset column
 dataset.composite_ai_outcome = minimum_of(dataset.grp1_outcome,
