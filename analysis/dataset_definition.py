@@ -96,16 +96,18 @@ region = (practice_registrations.for_patient_on(start_date)
 dataset.region = region
 
 # add consultation rate column
-dataset.consultation_rate = appointments.where(
-    appointments.status.is_in([
-        "Arrived",
-        "In Progress",
-        "Finished",
-        "Visit",
-        "Waiting",
-        "Patient Walked Out",
-    ]) & appointments.start_date.is_on_or_between(start_date - days(365), start_date)
-).count_for_patient()
+# dataset.consultation_rate = appointments.where(
+#     appointments.status.is_in([
+#         "Arrived",
+#         "In Progress",
+#         "Finished",
+#         "Visit",
+#         "Waiting",
+#         "Patient Walked Out",
+#     ]) & appointments.start_date.is_on_or_between(start_date - days(365), start_date)
+# ).count_for_patient()
+
+## consulation rate temporarily commented out until alternative to appointments table is found
 
 # add smoking status column
 dataset.smoking_status = (
@@ -281,17 +283,20 @@ for i in range(1, 10+1):
 def autoimmune_date_snomed(column_name, snomed_code, icd_code):
    
    autoimmune_primary_date = (clinical_events.where(
-      clinical_events.snomedct_code.is_in(snomed_code)
+      ((clinical_events.snomedct_code.is_in(snomed_code)) &
+      (clinical_events.date.is_on_or_between(start_date, end_date)))
    ).sort_by(clinical_events.date).first_for_patient().date)
 
    autoimmune_secondary_date1 = (apcs.where(
-      (apcs.primary_diagnosis.is_in(icd_code) |
-       apcs.secondary_diagnosis.is_in(icd_code))
+      ((apcs.primary_diagnosis.is_in(icd_code) |
+       apcs.secondary_diagnosis.is_in(icd_code)) &
+       (apcs.admission_date.is_on_or_between(start_date, end_date)))
    ).sort_by(apcs.admission_date).first_for_patient().admission_date)
 
    autoimmune_secondary_date2 = (opa_diag.where(
-      (opa_diag.primary_diagnosis_code.is_in(icd_code) |
-       opa_diag.secondary_diagnosis_code_1.is_in(icd_code))
+      ((opa_diag.primary_diagnosis_code.is_in(icd_code) |
+       opa_diag.secondary_diagnosis_code_1.is_in(icd_code)) &
+       (opa_diag.appointment_date.is_on_or_between(start_date, end_date)))
    ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
 
    dataset.add_column(column_name, (minimum_of(
@@ -303,17 +308,20 @@ def autoimmune_date_snomed(column_name, snomed_code, icd_code):
 def autoimmune_date_ctv(column_name, ctv_code, icd_code):
    
    autoimmune_primary_date = (clinical_events.where(
-      clinical_events.ctv3_code.is_in(ctv_code)
+      (clinical_events.ctv3_code.is_in(ctv_code)) &
+      (clinical_events.date.is_on_or_between(start_date, end_date))
    ).sort_by(clinical_events.date).first_for_patient().date)
 
    autoimmune_secondary_date1 = (apcs.where(
-      (apcs.primary_diagnosis.is_in(icd_code) |
-       apcs.secondary_diagnosis.is_in(icd_code))
+      ((apcs.primary_diagnosis.is_in(icd_code) |
+       apcs.secondary_diagnosis.is_in(icd_code)) &
+      (apcs.admission_date.is_on_or_between(start_date, end_date)))
    ).sort_by(apcs.admission_date).first_for_patient().admission_date)
 
    autoimmune_secondary_date2 = (opa_diag.where(
-      (opa_diag.primary_diagnosis_code.is_in(icd_code) |
-       opa_diag.secondary_diagnosis_code_1.is_in(icd_code))
+      ((opa_diag.primary_diagnosis_code.is_in(icd_code) |
+       opa_diag.secondary_diagnosis_code_1.is_in(icd_code)) &
+       (opa_diag.appointment_date.is_on_or_between(start_date, end_date)))
    ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
 
    dataset.add_column(column_name, (minimum_of(
@@ -395,18 +403,21 @@ autoimmune_date_snomed("celiac", celiac_code_snomed, celiac_code_icd)
 
 # add date of inflammatory bowel disease (ibd) onset column
 ibd_primary_date = (clinical_events.where(
-    (clinical_events.snomedct_code.is_in(ibd_code_snomed) |
-    clinical_events.ctv3_code.is_in(ibd_code_ctv3))
+    ((clinical_events.snomedct_code.is_in(ibd_code_snomed) |
+    clinical_events.ctv3_code.is_in(ibd_code_ctv3)) &
+    (clinical_events.date.is_on_or_between(start_date, end_date)))
 ).sort_by(clinical_events.date).first_for_patient().date)
 
 ibd_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(ibd_code_icd) |
-    apcs.secondary_diagnosis.is_in(ibd_code_icd))
+    ((apcs.primary_diagnosis.is_in(ibd_code_icd) |
+    apcs.secondary_diagnosis.is_in(ibd_code_icd)) &
+    apcs.admission_date.is_on_or_between(start_date, end_date))
 ).sort_by(apcs.admission_date).first_for_patient().admission_date)
 
 ibd_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(ibd_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(ibd_code_icd))
+    ((opa_diag.primary_diagnosis_code.is_in(ibd_code_icd) |
+    opa_diag.secondary_diagnosis_code_1.is_in(ibd_code_icd)) &
+    opa_diag.appointment_date.is_on_or_between(start_date, end_date))
 ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
 
 dataset.ibd = minimum_of(ibd_primary_date,
@@ -467,18 +478,21 @@ autoimmune_date_snomed("pern_anaem", pernicious_anaemia_code_snomed,
 
 # add date of aplastic anaemia onset column
 apa_primary_date = (clinical_events.where(
-    (clinical_events.snomedct_code.is_in(apa_code_snomed) |
-    clinical_events.ctv3_code.is_in(apa_code_ctv))
+    ((clinical_events.snomedct_code.is_in(apa_code_snomed) |
+    clinical_events.ctv3_code.is_in(apa_code_ctv)) &
+    clinical_events.date.is_on_or_between(start_date, end_date))
 ).sort_by(clinical_events.date).first_for_patient().date)
 
 apa_secondary_date1 = (apcs.where(
-    (apcs.primary_diagnosis.is_in(apa_code_icd) |
-    apcs.secondary_diagnosis.is_in(apa_code_icd))
+    ((apcs.primary_diagnosis.is_in(apa_code_icd) |
+    apcs.secondary_diagnosis.is_in(apa_code_icd)) &
+    apcs.admission_date.is_on_or_between(start_date, end_date))
 ).sort_by(apcs.admission_date).first_for_patient().admission_date)
 
 apa_secondary_date2 = (opa_diag.where(
-    (opa_diag.primary_diagnosis_code.is_in(apa_code_icd) |
-    opa_diag.secondary_diagnosis_code_1.is_in(apa_code_icd))
+    ((opa_diag.primary_diagnosis_code.is_in(apa_code_icd) |
+    opa_diag.secondary_diagnosis_code_1.is_in(apa_code_icd)) &
+    opa_diag.appointment_date.is_on_or_between(start_date, end_date))
 ).sort_by(opa_diag.appointment_date).first_for_patient().appointment_date)
 
 dataset.apla_anaem = minimum_of(apa_primary_date,
